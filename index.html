@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Voting</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+            color: #fff;
+            min-height: 100vh;
+            padding: 2rem 1rem;
+        }
+        h1 {
+            text-align: center;
+            font-size: 2.2rem;
+            margin-bottom: 2rem;
+            letter-spacing: 1px;
+        }
+        .positions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 2rem;
+            justify-content: center;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .position-card {
+            background: rgba(255,255,255,0.07);
+            border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 16px;
+            padding: 1.5rem;
+            width: 350px;
+            backdrop-filter: blur(10px);
+        }
+        .position-card h2 {
+            text-align: center;
+            font-size: 1.4rem;
+            margin-bottom: 1.2rem;
+            color: #a78bfa;
+        }
+        .candidate {
+            margin-bottom: 1rem;
+        }
+        .candidate-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 4px;
+        }
+        .candidate-name {
+            font-weight: 600;
+            font-size: 0.95rem;
+        }
+        .candidate-votes {
+            font-size: 0.85rem;
+            color: #c4b5fd;
+        }
+        .bar-bg {
+            background: rgba(255,255,255,0.1);
+            border-radius: 8px;
+            height: 28px;
+            overflow: hidden;
+            position: relative;
+        }
+        .bar-fill {
+            height: 100%;
+            border-radius: 8px;
+            transition: width 0.5s ease;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            padding-right: 8px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            min-width: 0;
+        }
+        .bar-fill.leading {
+            box-shadow: 0 0 12px rgba(167,139,250,0.5);
+        }
+        .vote-btn {
+            background: none;
+            border: 1px solid rgba(167,139,250,0.5);
+            color: #a78bfa;
+            padding: 4px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            transition: all 0.2s;
+        }
+        .vote-btn:hover {
+            background: #a78bfa;
+            color: #1a1a2e;
+        }
+        .vote-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            background: none;
+            color: #a78bfa;
+        }
+        .leader-tag {
+            display: inline-block;
+            background: #a78bfa;
+            color: #1a1a2e;
+            font-size: 0.7rem;
+            font-weight: 700;
+            padding: 1px 8px;
+            border-radius: 4px;
+            margin-left: 6px;
+        }
+
+
+        /* Candidate colors */
+        .color-0 { background: linear-gradient(90deg, #6366f1, #818cf8); }
+        .color-1 { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+        .color-2 { background: linear-gradient(90deg, #10b981, #34d399); }
+        .color-3 { background: linear-gradient(90deg, #ef4444, #f87171); }
+        .color-4 { background: linear-gradient(90deg, #ec4899, #f472b6); }
+
+        @media (max-width: 400px) {
+            .position-card { width: 100%; }
+        }
+    </style>
+</head>
+<body>
+    <h1>&#127881; Live Voting</h1>
+    <div class="positions" id="app"></div>
+
+    <script>
+        const candidates = ['Faith', 'Brave', 'Rutendo', 'Allan', 'Nyasha'];
+        const positions = ['CEO', 'CTO', 'HR'];
+
+        function loadVotes() {
+            const saved = localStorage.getItem('votes');
+            if (saved) return JSON.parse(saved);
+            const data = {};
+            positions.forEach(pos => {
+                data[pos] = {};
+                candidates.forEach(c => data[pos][c] = 0);
+            });
+            return data;
+        }
+
+        function saveVotes() {
+            localStorage.setItem('votes', JSON.stringify(votes));
+        }
+
+        function loadVotedPositions() {
+            const saved = localStorage.getItem('votedPositions');
+            return saved ? JSON.parse(saved) : {};
+        }
+
+        function saveVotedPositions() {
+            localStorage.setItem('votedPositions', JSON.stringify(votedPositions));
+        }
+
+        let votes = loadVotes();
+        let votedPositions = loadVotedPositions();
+
+        function castVote(position, candidate) {
+            const previous = votedPositions[position];
+            if (previous === candidate) return;
+            if (previous) {
+                votes[position][previous]--;
+            }
+            votes[position][candidate]++;
+            votedPositions[position] = candidate;
+            saveVotes();
+            saveVotedPositions();
+            render();
+        }
+
+        function render() {
+            const app = document.getElementById('app');
+            app.innerHTML = '';
+            positions.forEach(pos => {
+                const maxVotes = Math.max(...candidates.map(c => votes[pos][c]), 1);
+                const totalVotes = candidates.reduce((sum, c) => sum + votes[pos][c], 0);
+                const leader = candidates.reduce((a, b) => votes[pos][a] >= votes[pos][b] ? a : b);
+                const hasVotes = totalVotes > 0;
+                const votedFor = votedPositions[pos] || null;
+
+                const card = document.createElement('div');
+                card.className = 'position-card';
+
+                let html = `<h2>${pos}</h2>`;
+                candidates.forEach((c, i) => {
+                    const count = votes[pos][c];
+                    const pct = totalVotes > 0 ? (count / totalVotes * 100) : 0;
+                    const isLeader = hasVotes && c === leader && count > 0;
+                    html += `
+                        <div class="candidate">
+                            <div class="candidate-header">
+                                <span>
+                                    <span class="candidate-name">${c}</span>
+                                    ${isLeader ? '<span class="leader-tag">LEADING</span>' : ''}
+                                </span>
+                                <span>
+                                    <span class="candidate-votes">${count} vote${count !== 1 ? 's' : ''} (${pct.toFixed(1)}%)</span>
+                                    <button class="vote-btn" onclick="castVote('${pos}','${c}')" ${votedFor === c ? 'disabled' : ''}>
+                                        ${votedFor === c ? '&#10003;' : 'Vote'}
+                                    </button>
+                                </span>
+                            </div>
+                            <div class="bar-bg">
+                                <div class="bar-fill color-${i} ${isLeader ? 'leading' : ''}" style="width:${pct}%">
+                                    ${pct > 8 ? pct.toFixed(1) + '%' : ''}
+                                </div>
+                            </div>
+                        </div>`;
+                });
+                card.innerHTML = html;
+                app.appendChild(card);
+            });
+        }
+
+        render();
+    </script>
+</body>
+</html>
