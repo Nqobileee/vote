@@ -132,51 +132,50 @@
         const candidates = ['Faith', 'Brave', 'Rutendo', 'Allan', 'Nyasha'];
         const positions = ['CEO', 'CTO', 'HR'];
 
-        function loadVotes() {
-            const saved = localStorage.getItem('votes');
-            if (saved) return JSON.parse(saved);
-            const data = {};
-            positions.forEach(pos => {
-                data[pos] = {};
-                candidates.forEach(c => data[pos][c] = 0);
-            });
-            return data;
-        }
+        let votes = {};
+        positions.forEach(pos => {
+            votes[pos] = {};
+            candidates.forEach(c => votes[pos][c] = 0);
+        });
 
-        function saveVotes() {
-            localStorage.setItem('votes', JSON.stringify(votes));
-        }
-
+        // Track who this browser voted for (local only)
         function loadVotedPositions() {
             const saved = localStorage.getItem('votedPositions');
             return saved ? JSON.parse(saved) : {};
         }
-
         function saveVotedPositions() {
             localStorage.setItem('votedPositions', JSON.stringify(votedPositions));
         }
-
-        let votes = loadVotes();
         let votedPositions = loadVotedPositions();
 
-        function castVote(position, candidate) {
+        async function fetchVotes() {
+            try {
+                const res = await fetch('/votes');
+                votes = await res.json();
+                render();
+            } catch (e) {}
+        }
+
+        async function castVote(position, candidate) {
             const previous = votedPositions[position];
             if (previous === candidate) return;
-            if (previous) {
-                votes[position][previous]--;
-            }
-            votes[position][candidate]++;
             votedPositions[position] = candidate;
-            saveVotes();
             saveVotedPositions();
-            render();
+            try {
+                const res = await fetch('/vote', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ position, candidate, previous: previous || null })
+                });
+                votes = await res.json();
+                render();
+            } catch (e) {}
         }
 
         function render() {
             const app = document.getElementById('app');
             app.innerHTML = '';
             positions.forEach(pos => {
-                const maxVotes = Math.max(...candidates.map(c => votes[pos][c]), 1);
                 const totalVotes = candidates.reduce((sum, c) => sum + votes[pos][c], 0);
                 const leader = candidates.reduce((a, b) => votes[pos][a] >= votes[pos][b] ? a : b);
                 const hasVotes = totalVotes > 0;
@@ -216,7 +215,9 @@
             });
         }
 
-        render();
+        // Load votes from server on start, then poll every 2 seconds
+        fetchVotes();
+        setInterval(fetchVotes, 2000);
     </script>
 </body>
 </html>
